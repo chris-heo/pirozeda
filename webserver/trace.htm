@@ -1,0 +1,201 @@
+<!-- this is  Ụ̵͈̘͚̐͊̅̏ṇ̵͐ĭ̸̮̐c̸̰̥̆ó̷͇̩̒̄̍d̷̛̫̩̪̿̑è̴̢͔̖̯͎̚ -->
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Trace</title>
+    <script src="./d.js"></script>
+    <script src="./tabs.js"></script>
+    <script src="./datestuff.js"></script>
+    <script src="./common.js"></script>
+    <script src="./hexview.js"></script>
+    <link rel="stylesheet" href="./style.css" />
+    <script>
+    d.ea(window, "load", function() {
+        markerNo = 0;
+        tmrUpdate = new Timer(250, function() { tick() }, false);
+        tmrUpdate.repeat = false;
+        jhrLive = new JsonHttpRequest("trace_live.php", {"tts" : 0}, function(obj, success, data) { update(success, data); } );
+        jhrLive.load();
+        dateformat = new DateFormat("YYYY-MM-DD HH:mm:ss.fff");
+
+        commentHistory = [];
+        commentHistoryIdx = 0;
+
+        d.ea(d.ebi("txt_comment"), "keypress", function(e) { 
+            if(e.keyCode == 13)
+            {
+                // Enter
+                var txt = e.target.value;
+
+                if(txt == "")
+                {
+                    // if no text was entered, set marker
+                    setmarker();
+                    return;
+                }
+
+                // push comment into history if it's new
+                if(commentHistory.length == 0 || commentHistory[0] != txt)
+                {
+                    commentHistory.splice(0,0,txt);
+                    commentHistoryIdx = -1;
+                }
+
+                var ts = dateformat.Format(new Date());
+                
+                logaddcontent(d.acp(d.ce("span", {"className" : "comment"}), d.ctn(ts + " | " + txt + "\n")));
+                e.target.value = "";
+            }
+            else if(e.keyCode == 27)
+            {
+                // Escape
+                e.target.value = "";
+                commentHistoryIdx = -1;
+            }
+            else if(e.keyCode == 38)
+            {
+                // Arrow up
+                if(commentHistory.length == 0) return;
+                if((commentHistory.length - 1) > commentHistoryIdx)
+                    commentHistoryIdx++;
+                e.target.value = commentHistory[commentHistoryIdx];
+                
+                e.cancelBubble = true;
+            }
+            else if(e.keyCode == 40)
+            {
+                // Arrow down
+                commentHistoryIdx--;
+                if(commentHistoryIdx >= 0)
+                {
+                    e.target.value = commentHistory[commentHistoryIdx];
+                }
+                else
+                {
+                    commentHistoryIdx = -1;
+                    e.target.value = "";
+                }
+                e.cancelBubble = true;
+            }
+        });
+
+        d.ea(d.ebi("btn_marker"), "click", function() { setmarker(); });
+        d.ea(d.ebi("btn_clear"), "click", function() { d.rac(d.ebi("content")); markerNo = 0; });
+        d.ea(d.ebi("btn_save"), "click", function() { savedata(); });
+    });
+    function logaddcontent(content)
+    {
+        d.ac(d.ebi("content"), content);
+        window.scrollTo(0,document.body.scrollHeight);
+    }
+    function update(success, data)
+    {
+        var now = (new Date()).getTime();
+        var lastReceived = 0;
+        if(success == true)
+        {
+            var offset = now - data.now * 1000;
+            var cdf = d.cdf()
+            //d.ac(cdf, d.ctn("offset:" + offset + " ms\n"));
+            //TODO store offset and use it to sync comments & markers
+            
+            for(var i = 0; i < data.data.length; i++)
+            {
+                var line = data.data[i]
+                var ts = dateformat.Format(new Date(line[0]*1000));
+                d.ac(cdf, d.ctn(ts + " | " + line[1] + "\n"));
+            }
+            lastReceived = data.now;
+            logaddcontent(cdf);
+        }
+        jhrLive.params["tts"] = lastReceived;
+        tmrUpdate.start();
+    }
+    function tick()
+    {
+        jhrLive.load();
+    }
+    function setmarker()
+    {
+        var ts = dateformat.Format(new Date());
+        logaddcontent(d.acp(d.ce("span", {"className" : "marker"}), d.ctn(ts + " | Marker " + (++markerNo) + "\n")));
+    }
+    function savedata()
+    {
+        var a = d.ce("a");
+        a.style = "display: none";
+        d.ac(d.d.body, a);
+        
+        var blob = new Blob([d.ebi("content").innerHTML], {type: "octet/stream"});
+        var url = window.URL.createObjectURL(blob);
+        a.href = url;
+        a.download = "prozedatrace_" + new DateFormat("YYYY\\ MM\\ DD\\ HH\\ mm\\ ss").Format(new Date()) + ".htm";
+        a.click();
+        window.URL.revokeObjectURL(url);
+        a.remove();
+    }
+    </script>
+    <style>
+        html, body 
+        {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+            font-size: 12px;
+        }
+        #container
+        {
+            position: relative;
+            margin: 0 auto;
+            width: 100%;
+            background: #f0f0f0;
+            height: auto !important;
+            height: 100%;
+            min-height: 100%;
+        }
+
+        .ffs
+        {
+            white-space: pre;
+            font-family: Consolas, 'Courier New', Courier, monospace;
+        }
+
+        #content
+        {
+            padding: 1em 1em 5em;
+        }
+        #footer
+        {
+            position: fixed;
+            width: 100%;
+            bottom: 0;
+            background: #ddd;
+            padding: 2px;
+            border-top: 1px solid gray;
+        }
+
+        .marker
+        {
+            color: purple;
+        }
+
+        .comment
+        {
+            color: darkgreen;
+        }
+    </style>
+</head>
+<body>
+    <div id="container">
+    <div id="content" class="ffs"></div>
+    <div id="footer">
+        Comment: <input type="text" id="txt_comment" size="50"/>
+        <input type="button" id="btn_marker" value="Marker" />
+        <input type="button" id="btn_clear" value="Clear" />
+        <input type="button" id="btn_save" value="Save" />
+    </div>
+</div>
+</body>
+</html>

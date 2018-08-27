@@ -1,0 +1,111 @@
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+    font-size: 12px;
+}
+
+.tabcontent {
+border: 1px solid #9E9FA0;
+}
+
+.hortabs {
+list-style-type: none;
+margin: 0;
+padding: 0;
+overflow: hidden;
+}
+
+.hortabs li {
+float: left;
+border-top: 1px solid #9E9FA0;
+border-left: 1px solid #9E9FA0;
+border-right: 1px solid #9E9FA0;
+margin-right: 1px;
+margin-bottom: 0px;
+margin-left: 0px;
+padding-top: 6px;
+padding-right: 10px;
+padding-bottom: 5px;
+padding-left: 10px;
+user-select: none;
+-moz-user-select: none;
+background-color: #E3E4E6;
+}
+
+.hortabs li.active {
+    border-top: 2px solid #0A84FF;
+    background-color: #F5F6F7;
+    padding-top: 5px;
+}
+
+.hortabs a {
+color: black;
+display: inline-block;
+text-decoration:none;
+cursor: default;
+}
+
+.hidden .txtchani {
+    animation: ani_texthighlight_hidden 1.5s steps(15);
+    color: gray;
+}
+
+@keyframes ani_texthighlight_hidden {
+    from {
+        color: red;
+    }
+    to {
+        color: gray;
+    }
+}
+
+.txtchani {
+    animation: ani_texthighlight 1.5s steps(15);
+    color: black;
+}
+
+@keyframes ani_texthighlight {
+    from {
+        color: red;
+    }
+    to {
+        color: black;
+    }
+}
+
+.tabcontent {
+    padding: 2px;
+}
+table.currentdata tr.hidden {
+    color: gray;
+}
+table.currentdata tr td:nth-child(2) {
+    text-align:right;
+}
+
+#graph_lastupdate,
+#lcd_lastupdate {
+    font-style: italic;
+    margin: 0;
+}
+
+
+
+table.debugtable tr td:nth-child(2) 
+{
+    text-align: right;
+}
+
+table.debugtable tr.sep
+{
+    text-align: center;
+    font-weight: bold;
+}
+
+#lcddata_raw,
+#currdata_raw
+{
+    white-space: pre;
+    font-family: Consolas, monospace;
+    vertical-align: top;
+    padding-top: 2em;
+}

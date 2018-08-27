@@ -3,24 +3,30 @@ import os
 import errno
 
 class DataLogger(object):
-    fileprefix = ''
-    filesuffix = ''
-    filename = ''
-    filehandle = None
-    formatstr = '{:.3f}\t{}\t{}\n'
 
-    def __init__(self, fileprefix, filesuffix):
+    def __init__(self, fileprefix, filesuffix, timeformat='%Y-%m-%d', filenamestatic=False):
+        self.filehandle = None
+        self.formatstr = '{:.3f}\t{}\t{}\n'
+
         self.fileprefix = fileprefix
         self.filesuffix = filesuffix
+        self.timeformat = timeformat
+        self.filename = None
+        self.filenamestatic = filenamestatic
         self.openfile()
 
     def __del__(self):
         self.close()
 
+    def get_filesize(self):
+        #return os.fstat(self.filehandle.fileno()).st_size
+        return self.filehandle.tell()
 
     def openfile(self):
         oldfilename = self.filename
-        self.filename = self.fileprefix + time.strftime('%Y-%m-%d') + self.filesuffix
+        #FIXME
+        if self.filenamestatic == False or self.filename is None:
+            self.filename = self.fileprefix + time.strftime(self.timeformat) + self.filesuffix
 
         # open the file only if it has a different file name
         if oldfilename != self.filename:
@@ -47,10 +53,16 @@ class DataLogger(object):
         self.filehandle.write(self.formatstr.format(logtime, logtype, data))
 
     def flush(self):
-        self.filehandle.flush()
+        if self.filehandle != None:
+            self.filehandle.flush()
+            return True
+        return False
 
     def close(self):
+        if self.filehandle is None:
+            return
         self.write(None, 'i', 'Log closed')
         self.filehandle.flush()
         self.filehandle.close()
+        self.filehandle = None
 
