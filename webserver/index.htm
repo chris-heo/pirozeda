@@ -1,0 +1,176 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Solaranlage</title>
+  <script src="./plotly-cartesian-latest.min.js"></script>
+</head>
+<body>
+  <div id="graph" style="width:100%; height: 800px"></div>
+</body>
+    
+
+  
+    <script >
+
+var plotdata = [];
+
+window.onload = function()
+{
+    var request = new XMLHttpRequest();
+
+    request.open("GET","data_latest.php");
+    request.addEventListener('load', function(event) {
+        data_received(request)
+    });
+    request.send();
+
+    //prepare plotly
+    var selectorOptions = {
+        buttons: [{
+            step: 'month',
+            stepmode: 'backward',
+            count: 1,
+            label: '1 Monat'
+        }, {
+            step: 'month',
+            stepmode: 'backward',
+            count: 6,
+            label: '6 Monate'
+        }, {
+            step: 'year',
+            stepmode: 'todate',
+            count: 1,
+            label: 'Jahr'
+        }, {
+            step: 'year',
+            stepmode: 'backward',
+            count: 1,
+            label: '1 Jahr'
+        }, {
+            step: 'all',
+            label: 'Alles'
+        }],
+    };
+
+
+    var layout = {
+        xaxis: {
+            /*rangeselector: selectorOptions,*/
+            rangeslider: {}
+        },
+        yaxis1: {
+            title : "Leistung [%]",
+            fixedrange: true,
+            domain: [0, 0.45]
+            
+        },
+        yaxis2: {
+            title: "Temperatur [°C]",
+            fixedrange: true,
+            domain: [0.55, 1]
+        }
+    };
+
+    Plotly.plot('graph', plotdata, layout, { scrollZoom: true });
+}
+
+
+function data_received(req)
+{
+    if (!(req.status >= 200 && req.status < 300)) 
+    {
+        console.warn(req.statusText, req.responseText);
+        return;
+    }
+
+    var rawdata = JSON.parse(req.responseText);
+    // now, process the data
+    var tempnames = ["Temperatur 1", "Temperatur 2", "Temperatur 3", "Temperatur 4", "Temperatur 5", "Temperatur 6", "Temperatur 7", "Temperatur 8", "Temperatur 9", "Temperatur 10", "Temperatur 11"];
+    var outputnames = ["Ausgang 1", "Ausgang 2", "Ausgang 3", "Ausgang 4", "Ausgang 5", "Ausgang 6", "Ausgang 7"];
+    var xvals = [];
+    var tempseries = [];
+    var outputseries = [];
+    plotdata.length = 0; // the data in this variable will be handed over to plotly
+
+    for(var i = 0; i < tempnames.length; i++)
+    {
+        var ref = { name: tempnames[i], mode: 'lines', x : xvals, y: [], xaxis : 'x', yaxis : 'y2' }
+        tempseries.push(ref);
+        plotdata.push(ref);
+    }
+
+    for(var i = 0; i < outputnames.length; i++)
+    {
+        var ref = { name: outputnames[i], mode: 'lines', x : xvals, y: [], xaxis : 'x', yaxis : 'y1' };
+        outputseries.push(ref);
+        plotdata.push(ref);
+    }
+    
+    
+    for(var i = 0; i < rawdata.length; i++)
+    {
+        xvals.push(new Date(rawdata[i].timestamp * 1000));
+        for(var s = 0; s < tempnames.length; s++)
+        {
+            tempseries[s].y.push(rawdata[i].temperature[s]);
+        }
+        for(var s = 0; s < outputnames.length; s++)
+        {
+            outputseries[s].y.push(rawdata[i].output[s]);
+        }
+    }
+
+    Plotly.redraw('graph');
+
+}
+
+
+
+
+
+
+
+/*
+    return [{
+        name: 'Kanal 1',
+        mode: 'lines',
+        x: x,
+        y: y1,
+        xaxis: 'x',
+        yaxis: 'y1'
+    },
+    {
+        name: 'Kanal 2',
+        mode: 'lines',
+        x: x,
+        y: y2,
+        xaxis: 'x',
+        yaxis: 'y1'
+    },
+    {
+        name: 'Kanal 3',
+        mode: 'lines',
+        x: x,
+        y: y3,
+        xaxis: 'x',
+        yaxis: 'y2'
+    },
+    {
+        name: 'Kanal 4',
+        mode: 'lines',
+        x: x,
+        y: y4,
+        xaxis: 'x',
+        yaxis: 'y2'
+    }];*/
+
+  </script>
+
+  
+  
+
+</body>
+</html>
+ 
