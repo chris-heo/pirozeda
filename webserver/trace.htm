@@ -84,11 +84,13 @@
         d.ea(d.ebi("btn_clear"), "click", function() { d.rac(d.ebi("content")); markerNo = 0; });
         d.ea(d.ebi("btn_save"), "click", function() { savedata(); });
     });
+
     function logaddcontent(content)
     {
         d.ac(d.ebi("content"), content);
         window.scrollTo(0,document.body.scrollHeight);
     }
+
     function update(success, data)
     {
         var now = (new Date()).getTime();
@@ -112,28 +114,22 @@
         jhrLive.params["tts"] = lastReceived;
         tmrUpdate.start();
     }
+
     function tick()
     {
         jhrLive.load();
     }
+
     function setmarker()
     {
         var ts = dateformat.Format(new Date());
         logaddcontent(d.acp(d.ce("span", {"className" : "marker"}), d.ctn(ts + " | Marker " + (++markerNo) + "\n")));
     }
+    
     function savedata()
     {
-        var a = d.ce("a");
-        a.style = "display: none";
-        d.ac(d.d.body, a);
-        
-        var blob = new Blob([d.ebi("content").innerHTML], {type: "octet/stream"});
-        var url = window.URL.createObjectURL(blob);
-        a.href = url;
-        a.download = "prozedatrace_" + new DateFormat("YYYY\\ MM\\ DD\\ HH\\ mm\\ ss").Format(new Date()) + ".htm";
-        a.click();
-        window.URL.revokeObjectURL(url);
-        a.remove();
+        var filename = "prozedatrace_" + new DateFormat("YYYY\\ MM\\ DD\\ HH\\ mm\\ ss").Format(new Date()) + ".htm";
+        SaveFile(d.ebi("content").innerHTML, filename)
     }
     </script>
     <style>

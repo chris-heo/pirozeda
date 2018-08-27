@@ -22,20 +22,28 @@ class ProzedaDisplaydata(object):
         """replace the character codes of the display to the utf8 equivalent chars"""
         text = ''.join(map(chr, rawtext))
         # the following replacements to the display contents are known:
+        # 0x01: ° - degree
         # 0x05: ↙ - south west arrow
+        # 0x06: ↗ - north east arrow
         # 0x07: ▲ - filled up-pointing triangle
         # 0x81: ü - german umlaut for small 'u'
         # 0x94: ö - german umlaut for small 'o'
         # 0xC6: ↓ - downwards arrow
         # 0xC7: → - rightwards arrow
+        # 0xE0: ↓ - downwards arrow
+        # 0xDE: ↑ - upwards arrow
         # 0xF5: ▼ - filled down-pointing triangle (not sure!)
+        # 0xFA: [ - left bracket
+        # 0xFC: ] - right bracket
         # 0x??: ä - german umlaut for small 'ä'
         mapping = [
-            ('\x05', '↙'), ('\x07', '▲'),
-            ('\x81', 'ü'), ('\x94', 'ö'),
-            ('\xC6', '↓'), ('\xC7', '→'),
-            ('\xF5', '▼'),
+            ('\x01', '°'), ('\x05', '↙'), ('\x06', '↗'),
+            ('\x07', '▲'), ('\x81', 'ü'), ('\x94', 'ö'),
+            ('\xC6', '↓'), ('\xC7', '→'), ('\xF5', '▼'),
+            ('\xE0', '↓'), ('\xDD', '\\xDD'), ('\xDE', '↑'),
+            ('\xFA', '['), ('\xFC', ']'),
         ]
+        # TODO: replace all non-readable characters as they seem to confuse pyjsonrpc
         for src, dst in mapping:
             text = text.replace(src, dst)
         return text
@@ -49,8 +57,9 @@ class ProzedaDisplaydata(object):
             return False
 
         self.text = [
-            self.convert_displaytext(self.data[0:19]),
-            self.convert_displaytext(self.data[19:38]),
+            self.convert_displaytext(self.data[0:14]),
+            self.convert_displaytext(self.data[14:24]),
+            self.convert_displaytext(self.data[24:38]),
         ]
         self.menu_info = (self.data[0x26] & 0x01) != 0
         self.menu_settings = (self.data[0x2A] & 0x01) != 0

@@ -20,14 +20,20 @@ class ProzedaLogColumn(object):
             val, pos = self.parse_int16(pos, data)
             return (float(val) / 10, pos)
         elif coltype in [0x00, 0x07, 0x08, 0x09, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10, 0x13]:
+            # Dummy, Storage [kWh], Date, Time [min], Function active (Controller)
+            # Function active (status automatic/manual), 
+            # Error Temperature, Error Output, Storage [h], Seconds, Flowrate [l/min]
             return self.parse_uint16(pos, data)
         elif coltype in [0x1B]:
             # Tapping
             val, pos = self.parse_uint16(pos, data)
             return (float(val) / 10, pos)
         elif coltype in [0x02, 0x0A]:
+            # Radiation [W], Output
+            # 1 byte for radiation looks a little strange, tbh - tbc
             return self.parse_uint8(pos, data)
         elif coltype == 0xFF:
+            # Unknown entry, length given in arg
             return self.parse_uintn(pos, data, self.arg)
 
     @staticmethod

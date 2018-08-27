@@ -293,3 +293,15 @@ ParamTableEntry.prototype =
         }
     }
 }
+
+function SaveFile(content, filename, mimetype)
+{
+    var a = d.ac(d.d.body, d.ce("a", {"style" : "display: none"}));
+    var blob = new Blob([content], { type: (mimetype || "octet/stream") });
+    var url = window.URL.createObjectURL(blob);
+    a.href = url;
+    a.download = filename;
+    a.click();
+    window.URL.revokeObjectURL(url);
+    a.remove();
+}

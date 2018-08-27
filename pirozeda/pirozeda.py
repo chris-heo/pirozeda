@@ -28,6 +28,13 @@ def dir_getsize(start_path):
 def app_ramusage():
     return sum(sys.getsizeof(i) for i in gc.get_objects())
 
+
+# just silence pyjsonrpc in the console.
+def pyjsonrpc_logmuffler(self, format, *args):
+    return
+
+setattr(pyjsonrpc.http.HttpRequestHandler, "log_message", pyjsonrpc_logmuffler)
+
 class JsonrpcRequestHandler(pyjsonrpc.HttpRequestHandler):
     """this is the json request handler, the interface to the webserver"""
 
@@ -35,14 +42,28 @@ class JsonrpcRequestHandler(pyjsonrpc.HttpRequestHandler):
 
     @pyjsonrpc.rpcmethod
     def info(self):
-        return "Version 0.2"
+        return "Version 0.3"
 
     @pyjsonrpc.rpcmethod
     def settings_get(self):
+        """Returns the settings of the system
+
+        Return:
+            dict: Dictionary of the system settings. See pirozeda_settings
+        """
         return settings
     
     @pyjsonrpc.rpcmethod
     def system_stats(self, livetrace_last_timestamp=None):
+        """Returns system statistics including log sizes (ram and fs), reader stats and livetraces
+
+        Args:
+            livetrace_last_timestamp (Optional[int]): timestamp (UTC) from when traces have to be returned. Defaults to None.
+                If provided, the method will return all messages received via UART after the given timestamp
+        
+        Returns:
+            dict: dictionary of the statistics.
+        """
         result = {
                 'logsize' : dir_getsize(settings['fslog']['dir']),
                 'thisram' : app_ramusage(),
@@ -67,6 +88,14 @@ class JsonrpcRequestHandler(pyjsonrpc.HttpRequestHandler):
     
     @pyjsonrpc.rpcmethod
     def current_logentry(self, raw=False):
+        """Returns the latest received log entry. Optionally including the raw received data
+            
+            Args:
+                raw (Optional[bool]): If true, raw message will be returned as Hexstring. Defaults to False.
+            
+            Returns:
+                dict: dictionary of interpreted and optionally raw data. Keys ware 'data' and 'raw'
+        """
         le = self.pirozeda.prozeda.get_latest_logentry()
         if le:
             retval = {'data' : le.get_columns(None, True)}
@@ -78,16 +107,24 @@ class JsonrpcRequestHandler(pyjsonrpc.HttpRequestHandler):
 
     @pyjsonrpc.rpcmethod
     def columnheader_get(self, selected_columns=None, include_timestamp=False):
-        """
-            Returns all selected column names
+        """Returns all selected column information
+
+        Args:
+            selected_columns (Optional[list]): List of columns (column-indices). None will return all columns. Defaults to None.
+            include_timestamp (Optional[bool]): Include timestamp in returned list Defaults to False;
+
+        Returns:
+            list: List of columns. Column data follows format defined in pirozeda_settings resp. prozeda_systems.
         """
         return ProzedaLogdata.get_column_header(selected_columns, include_timestamp)
 
     @pyjsonrpc.rpcmethod
     def ramlog_getlast(self, count=None, columns=None):
-        """
-            Returns the last <count> entries of the ramlog.
-            If <count> is omitted or None, all entries will be returned
+        """Returns the last entries from the ramlog.
+        
+        Args:
+            count (Optional[int]): Number of log-entries to be returned. If None, all entries will be returned. Defaults to None.
+            columns (Optional[int]): Columns to be returned, see columnheader_get. If None, all columns will be returned. Defaults to None
         """
         if count is None:
             count = len(self.pirozeda.ramlog)
@@ -97,7 +134,7 @@ class JsonrpcRequestHandler(pyjsonrpc.HttpRequestHandler):
                 'data' : [],
             }
 
-        # deque doesn't support slicing, so we need to do it on our own
+        # deque doesn't support slicing, so we need to do it manually
         start = max(0, len(self.pirozeda.ramlog) - count)
         for i in range(start, len(self.pirozeda.ramlog)):
             item = self.pirozeda.ramlog[i]
@@ -108,24 +145,46 @@ class JsonrpcRequestHandler(pyjsonrpc.HttpRequestHandler):
 
     @pyjsonrpc.rpcmethod
     def fslog_flush(self):
-        """
-            Flushes the buffer of the filesystem log
-        """
+        """Flushes the buffer of the filesystem log"""
         return self.pirozeda.fslog.flush()
     
     @pyjsonrpc.rpcmethod
     def fslog_read(self, starttime, endtime, selected_columns=None):
+        """Reads entries in the given time range from the file system logs.
+
+        Args:
+            startime (int): UTC timestamp from when the entries should be read.
+            endtime (int): UTC timestamp until when the entries should be read.
+            selected_columns (Optional[list]): List of columns that should be returned. Defaults to None (all columns).
+        
+        Returns:
+            dict: List of found log entries.
+        """
         self.pirozeda.fslog.flush()
         return ProzedaHistory.readlogsrange_as_list(starttime, endtime, selected_columns)
 
+    @pyjsonrpc.rpcmethod
     def fslog_readcondensed(self, starttime, endtime, column_index):
+        """Reads one column in the given time range from the file system logs as "condensed" list
+            
+        Args:
+            startime (int): UTC timestamp from when the entries should be read.
+            endtime (int): UTC timestamp until when the entries should be read.
+            column_index (int): index of columns that should be returned.
+
+        Returns:
+            dict: List of found log entries. Data is aligned (if possible) to the number of slots of measurements defined
+                by the interval of the fslog
+        """
         self.pirozeda.fslog.flush()
         return ProzedaHistory.readlogsrange_condensed(starttime, endtime, column_index)
 
     @pyjsonrpc.rpcmethod
     def display_getcurrent(self, raw=False):
-        """
-            Returns the display content
+        """Returns the display content
+
+        Args:
+            raw (Optional[bool]): If true, raw message will be returned as Hexstring. Defaults to False.
         """
         if not self.pirozeda.prozeda.hist_dispdata:
             return None
@@ -140,8 +199,13 @@ class JsonrpcRequestHandler(pyjsonrpc.HttpRequestHandler):
     
     @pyjsonrpc.rpcmethod
     def trace_start(self, duration):
-        """
-            Starts the file trace or bumps the trace duration and returns the info of the trace
+        """Starts the file trace or bumps the trace duration and returns the info of the trace
+
+        Args:
+            duration (int): time in seconds (from now) the trace should be recorded
+        
+        Returns:
+            dict: Statistics of the trace-system
         """
         self.pirozeda.trace.start(duration)
         return self.pirozeda.trace.stats()
@@ -149,13 +213,19 @@ class JsonrpcRequestHandler(pyjsonrpc.HttpRequestHandler):
     
     @pyjsonrpc.rpcmethod
     def trace_stop(self):
-        """
-            Stops the file trace
-        """
+        """Stops the file trace"""
         self.pirozeda.trace.stop()
 
     @pyjsonrpc.rpcmethod
     def trace_live(self, last_timestamp=0):
+        """Get live messages from the UART
+
+        Args:
+            last_timestamp (Optional[int]): last timestamp (UTC) from when the trace messages should be returned. Defaults to 0 (all messages).
+
+        Returns:
+            dict: current timestamp (for synchronisation)  List of trace messages including timestamp.
+        """
         return {
                 'now' : time.time(),
                 'data' : self.pirozeda.trace.livetrace_get(last_timestamp)
@@ -167,6 +237,8 @@ class JsonrpcRequestHandler(pyjsonrpc.HttpRequestHandler):
             server_address=settings['server_address'],
             RequestHandlerClass=JsonrpcRequestHandler
         )
+
+
 
         server_thread = threading.Thread(target=http_server.serve_forever)
         server_thread.daemon = True
@@ -269,7 +341,7 @@ class Pirozeda(object):
                     # nag only every 10 seconds
                     if ts >= (self.commdead_last + 10):
                         self.commdead_last = ts
-                        print("no data received")
+                        print(str(datetime.now()) + ": no data received")
 
                 if ts >= (self.fslog_last + settings['fslog']['interval']):
                     self.fslog_last = ts

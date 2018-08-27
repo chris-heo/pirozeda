@@ -89,12 +89,19 @@ class ProzedaHistory(object):
         result = []
         entriesperday = 24*60*60 / ProzedaHistory.config['fslog']['interval']
 
+        # due to either a bug in this software or misconfigured time zones on the machine,
+        # it is required to start loading the date from the day before 
+
         currentday = datetime.fromtimestamp(starttime)
         currentday = currentday.replace(hour=0, minute=0, second=0, microsecond=0)
 
         lastday = datetime.fromtimestamp(endtime)
         lastday = lastday.replace(hour=23, minute=59, second=59, microsecond=999999) 
 
+        # FIXME: some first values "between the days" are sometimes stored in the
+        # "wrong" log file. This is not considered here and might also be troublesome
+        # in other contexts. Best way would probably be to load (or store *sigh*) the
+        # data in a (temporary) RDBMS...
         while True:
             dtstr = currentday.strftime('%Y-%m-%d')
             basetime = time.mktime(currentday.timetuple())
@@ -105,11 +112,11 @@ class ProzedaHistory(object):
 
                 result2 = [None] * entriesperday
                 for entry in daydata:
-                    index = int(round((entry.timestamp - basetime) / entriesperday))
+                    index = int(round((entry.timestamp - basetime) / ProzedaHistory.config['fslog']['interval']))
                     if index >= 0 and index < entriesperday:
                         result2[index] = entry.get_column(column_index)
                     else:
-                        #print("index ({}) is out of bounds for time offset {}".format(index, entry.timestamp - basetime))
+                        # print("index ({}) is out of bounds for time offset {} on date {}".format(index, entry.timestamp - basetime, dtstr))
                         pass
 
                 #print('{} has {} entries'.format(fname, len(daydata)))
@@ -122,14 +129,3 @@ class ProzedaHistory(object):
             if currentday > lastday:
                 break
         return result
-
-
-
-
-if __name__ == "__main__":
-    #shitty tests
-    ProzedaLogdata.set_config(ProzedaHistory.config['system'])
-    t20171110_2127 = 1510345677
-    t20171113_1000 = 1510563600
-
-    print(ProzedaHistory.readlogsrange_condensed(t20171110_2127, t20171113_1000, 3))

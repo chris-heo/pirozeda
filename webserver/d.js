@@ -8,22 +8,21 @@ var d = {
 	ebn : function(n) { return document.getElementsByName(n); },
 	// first element by name
 	febn : function(n) { return document.getElementsByName(n)[0]; },
-	// create element
+	// create element. n: name, a?: attributes
 	ce : function(n, a) 
 	{
 		var e = document.createElement(n); 
 		if(a !== undefined)
 		{
-			//console.log("apply attributes", a, "to", e)
 			d.sa(e, a);
 		}
 		return e;
 	},
 	// create document fragment
 	cdf : function() { return document.createDocumentFragment(); },
-	// create text node
-	ctn : function(n) { return document.createTextNode(n); },
-	// append child
+	// create text node. t: textContent
+	ctn : function(t) { return document.createTextNode(t); },
+	// append child. p: parent, c: child
 	ac : function(p, c) 
 	{
 		if(c instanceof Array)
@@ -37,7 +36,7 @@ var d = {
 		}
 		return p.appendChild(c); 
 	},
-	// append child(s) (return parent node)
+	// append child(s) (return parent node). p: parent, c: child
 	acp : function(p, c) 
 	{
 		if(c instanceof Array)
@@ -53,19 +52,19 @@ var d = {
 		}
 		return p; 
 	},
-	// first child
+	// first child. e: element
 	fc : function(e) { return e.firstChild; },
-	// last child
+	// last child. e: element
 	lc : function(e) { return e.lastChild; },
-	// text content
+	// text content. e: element
 	tc : function(e) { return e.textContent; },
-	// remove all childs
-	rac : function(e) { while(e.hasChildNodes()) { e.removeChild(e.lastChild);} return e },
-	// concat elements & strings
+	// remove all childs. e: element
+	rac : function(e) { while(e.hasChildNodes()) { e.removeChild(e.lastChild); } return e; },
+	// concat elements & strings. a: [object|string, ...]
 	ces : function(a)
 	{
 		var f = document.createDocumentFragment();
-
+		
 		for(var i = 0; i < a.length; i++)
 		{
 			var e = a[i];
@@ -80,7 +79,7 @@ var d = {
 		}
 		return f;
 	},
-	// set attributes
+	// set attributes. o: target object, a: attributes
 	sa : function(o, a)
 	{
 		if(o instanceof Object)
@@ -99,7 +98,7 @@ var d = {
 		}	
 		return o;
 	},
-	// create select, array of [title, value?, selected?]
+	// create select. o: array of options [[title, value?, selected?], ...], a?: attributes for select element
 	cs : function(o, a)
 	{
 		var s = d.ce("select", a);
@@ -111,25 +110,25 @@ var d = {
 		}
 		return s;
 	},
-	// element by xpath
-	ebx : function(p, c) 
+	// element by xpath. p: xpath descriptor, e?: target element (default: document)
+	ebx : function(p, e) 
 	{
-		if(c == undefined) { c = document; }
-		return document.evaluate(p, c, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue; 
+		if(e == undefined) { e = document; }
+		return document.evaluate(p, e, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue; 
 	},
-	// elements by xpath (multiple)
-	ebxm : function(p, c)
+	// elements by xpath (multiple). p: xpath descriptor, e?: target element (default: document)
+	ebxm : function(p, e)
 	{
-		if(c == undefined) { c = document; }
+		if(e == undefined) { e = document; }
 		var ret = []
-		var res = document.evaluate(p, c, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
+		var res = document.evaluate(p, e, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
 		for ( var i=0 ; i < res.snapshotLength; i++ )
 		{
 			ret.push(res.snapshotItem(i));
 		}
 		return ret;
 	},
-	// element offset
+	// element offset. e: element
 	eo : function(e)
 	{
 		var left = 0;
@@ -145,7 +144,7 @@ var d = {
 		}
 		return { "offsetLeft" : left, "offsetTop" : top, "offsetHeight" : height, "offsetWidth" : width };
 	},
-	// eventlistener add
+	// eventlistener add. o: object, e: event, f: function
 	ea : function (o, e, f) 
 	{
 		if(o.addEventListener) 
@@ -157,7 +156,7 @@ var d = {
 			o.attachEvent("on" + e, f); 
 		}
 	},
-	// eventlistener remove
+	// eventlistener remove. o: object, e: event, f: function
 	er : function (o, e, f) {
 		if(o.removeEventListener) 
 		{
@@ -168,12 +167,12 @@ var d = {
 			o.detachEvent("on" + e, f); 
 		}
 	},
-	// is string
+	// is string. o: any
 	iss : function(o)
 	{
 		return typeof o === "string" || o instanceof String;
 	},
-	// className add
+	// className add. e: element, c: className
 	cna : function(e, c)
 	{
 		if(e.classList)
@@ -185,7 +184,7 @@ var d = {
 			e.className += " " + c;
 		}
 	},
-	// className remove
+	// className remove. e: element, c: className
 	cnr : function(e, c)
 	{
 		if(e.classList)
@@ -197,12 +196,11 @@ var d = {
 			e.className = e.className.replace(new RegExp("(?:^|\\s)" + d.res(c) + "(?!\\S)", "g"), "");
 		}
 	},
-	// regex escape string
+	// regex escape string. s: string
 	res : function(s)
 	{
 		return s.replace(/[\-\[\]\/\{\}\(\)\*\+\?\.\\\^\$\|]/g, "\\$&");
 	}
-
 };
 
 function Timer(interval, tick, enabled)
@@ -290,7 +288,7 @@ d.s = {
 		var p = d.s.repeat(p, Math.ceil((l - sl) / p.length));
 		return p.substr(0, l - sl) + s;
 	},
-
+	
 	// hex string to byte array
 	hs2ba : function(s)
 	{
@@ -398,7 +396,7 @@ function isElemVisible(obj) {
 		if(obj.style.display == 'none') { return false; }
 		if(obj.style.visibility == 'hidden') { return false; }
 	}
-
+	
 	if(window.getComputedStyle) {
 		var style = window.getComputedStyle(obj, "");
 		if(style.display == 'none') { return false; }
