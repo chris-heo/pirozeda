@@ -199,7 +199,7 @@ SolarManager.prototype =
     currentdata_loaded : function(success, data)
     {
         if(success == false || data == null) return;
-        if(this.tabs.selectedtab == 1)
+        if(this.tabs.selectedtab == 2)
         {
             //only update the table when it's shown
             this.ptCurrLogdata.update(data.data);
@@ -246,12 +246,12 @@ SolarManager.prototype =
     {
         this.psUpdatePlot.tick();
         this.jhrCurrdata.load();
-        if(this.tabs.selectedtab == 1)
+        if(this.tabs.selectedtab == 2)
         {
             // current data & display is selected
             this.jhrDispdata.load();
         }
-        else if(this.tabs.selectedtab == 2)
+        else if(this.tabs.selectedtab == 3)
         {
             this.jhrSysinfo.load();
         }
