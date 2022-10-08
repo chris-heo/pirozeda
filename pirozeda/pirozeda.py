@@ -1,21 +1,28 @@
+#!/usr/bin/python3
 # -*- coding: utf-8 -*-
 """This file is the main interface of the prozeda interface
 it reads the data from the hardware, stores the data periodically
 to the file system and provides a simple interface"""
 
-from __future__ import print_function
 import os
-import gc, sys
+import gc
+import sys
 import time
-from datetime import datetime, timedelta
+from datetime import datetime
 import collections
 import base64
 import threading
-import pyjsonrpc
+import logging
+import serial
+from werkzeug.wrappers import Request, Response
+from werkzeug.serving import run_simple
+from jsonrpc import JSONRPCResponseManager, dispatcher
 from prozeda import ProzedaReader, ProzedaLogdata, ProzedaHistory
 from datalogger import DataLogger
-import serial
 from pirozeda_settings import settings
+
+log = logging.getLogger('werkzeug')
+log.setLevel(logging.ERROR)
 
 def dir_getsize(start_path):
     total_size = 0
@@ -28,75 +35,88 @@ def dir_getsize(start_path):
 def app_ramusage():
     return sum(sys.getsizeof(i) for i in gc.get_objects())
 
-
-# just silence pyjsonrpc in the console.
-def pyjsonrpc_logmuffler(self, format, *args):
-    return
-
-setattr(pyjsonrpc.http.HttpRequestHandler, "log_message", pyjsonrpc_logmuffler)
-
-class JsonrpcRequestHandler(pyjsonrpc.HttpRequestHandler):
+class JsonrpcRequestHandler:
     """this is the json request handler, the interface to the webserver"""
 
     pirozeda = None
 
-    @pyjsonrpc.rpcmethod
-    def info(self):
-        return "Version 0.3"
+    @classmethod
+    def info(cls):
+        return "Version 0.4"
 
-    @pyjsonrpc.rpcmethod
-    def settings_get(self):
+    @classmethod
+    def settings_get(cls):
         """Returns the settings of the system
 
         Return:
             dict: Dictionary of the system settings. See pirozeda_settings
         """
         return settings
-    
-    @pyjsonrpc.rpcmethod
-    def system_stats(self, livetrace_last_timestamp=None):
+
+    @classmethod
+    def system_stats(cls, livetrace_last_timestamp=None):
         """Returns system statistics including log sizes (ram and fs), reader stats and livetraces
 
         Args:
-            livetrace_last_timestamp (Optional[int]): timestamp (UTC) from when traces have to be returned. Defaults to None.
-                If provided, the method will return all messages received via UART after the given timestamp
-        
+            livetrace_last_timestamp (Optional[int]): timestamp (UTC) from when traces have to be
+                returned. Defaults to None. If provided, the method will return all messages
+                received via UART after the given timestamp
+
         Returns:
             dict: dictionary of the statistics.
         """
+
+        hwinfo = cls.pirozeda.prozeda.hwinfo
         result = {
-                'logsize' : dir_getsize(settings['fslog']['dir']),
-                'thisram' : app_ramusage(),
-                'ramlog' : {'size' : self.pirozeda.ramlog.maxlen, 'items' : len(self.pirozeda.ramlog)},
-                'tracing' : self.pirozeda.trace.stats(),
-                'reader' : {
-                    'resettime' : self.pirozeda.prozeda.stat_resettime,
-                    'logdata' : self.pirozeda.prozeda.stat_logdata_cnt,
-                    'displaydata' : self.pirozeda.prozeda.stat_displaydata_cnt,
-                    'rxerror' : self.pirozeda.prozeda.stat_rxerror_cnt,
-                    'reset' : self.pirozeda.prozeda.stat_reset_cnt,
-                    'datamissing' : self.pirozeda.prozeda.stat_datamissing_cnt,
+            'logsize' : dir_getsize(settings['fslog']['dir']),
+            'thisram' : app_ramusage(),
+            'ramlog' : {'size' : cls.pirozeda.ramlog.maxlen, 'items' : len(cls.pirozeda.ramlog)},
+            'tracing' : cls.pirozeda.trace.stats(),
+            'reader' : {
+                'reset' :
+                {
+                    'time' : hwinfo.reset_last,
+                    'reason' : hwinfo.reset_reason,
+                    'count' : hwinfo.reset_count,
+                },
+                'builddate' : hwinfo.build_date,
+                'version' : hwinfo.version,
+                'voltage' : hwinfo.voltage,
+                'stats' :
+                {
+                    'logdata' : cls.pirozeda.prozeda.stat_logdata_cnt,
+                    'displaydata' : cls.pirozeda.prozeda.stat_displaydata_cnt,
+                    'rxerror' : cls.pirozeda.prozeda.stat_rxerror_cnt,
+                    'reset' : cls.pirozeda.prozeda.stat_reset_cnt,
+                    'datamissing' : cls.pirozeda.prozeda.stat_datamissing_cnt,
                     'nodatareceiving' : 0,
                 },
-                'livetrace' : None
-            }
-        
+            },
+            'system' : {
+                'serialnumber' : cls.pirozeda.prozeda.serialnumber,
+                'sysnumber' : cls.pirozeda.prozeda.systemnumber,
+                'sysversion' : cls.pirozeda.prozeda.systemversion,
+            },
+            'livetrace' : None
+        }
+
         if livetrace_last_timestamp is not None:
-            result['livetrace'] = self.pirozeda.trace.livetrace_get(livetrace_last_timestamp)
-        
+            result['livetrace'] = cls.pirozeda.trace.livetrace_get(livetrace_last_timestamp)
+
         return result
-    
-    @pyjsonrpc.rpcmethod
-    def current_logentry(self, raw=False):
+
+    @classmethod
+    def current_logentry(cls, raw=False):
         """Returns the latest received log entry. Optionally including the raw received data
-            
+
             Args:
-                raw (Optional[bool]): If true, raw message will be returned as Hexstring. Defaults to False.
-            
+                raw (Optional[bool]): If true, raw message will be returned as Hexstring.
+                    Defaults to False.
+
             Returns:
                 dict: dictionary of interpreted and optionally raw data. Keys ware 'data' and 'raw'
         """
-        le = self.pirozeda.prozeda.get_latest_logentry()
+        le = cls.pirozeda.prozeda.get_latest_logentry()
         if le:
             retval = {'data' : le.get_columns(None, True)}
             if raw == True:
@@ -105,90 +125,96 @@ class JsonrpcRequestHandler(pyjsonrpc.HttpRequestHandler):
         else:
             return None
 
-    @pyjsonrpc.rpcmethod
-    def columnheader_get(self, selected_columns=None, include_timestamp=False):
+    @classmethod
+    def columnheader_get(cls, selected_columns=None, include_timestamp=False):
         """Returns all selected column information
 
         Args:
-            selected_columns (Optional[list]): List of columns (column-indices). None will return all columns. Defaults to None.
-            include_timestamp (Optional[bool]): Include timestamp in returned list Defaults to False;
+            selected_columns (Optional[list]): List of columns (column-indices).
+                None will return all columns. Defaults to None.
+            include_timestamp (Optional[bool]): Include timestamp in returned list Defaults to False
 
         Returns:
-            list: List of columns. Column data follows format defined in pirozeda_settings resp. prozeda_systems.
+            list: List of columns. Column data follows format defined in pirozeda_settings resp. 
+                prozeda_systems.
         """
         return ProzedaLogdata.get_column_header(selected_columns, include_timestamp)
 
-    @pyjsonrpc.rpcmethod
-    def ramlog_getlast(self, count=None, columns=None):
+    @classmethod
+    def ramlog_getlast(cls, count=None, columns=None):
         """Returns the last entries from the ramlog.
-        
+
         Args:
-            count (Optional[int]): Number of log-entries to be returned. If None, all entries will be returned. Defaults to None.
-            columns (Optional[int]): Columns to be returned, see columnheader_get. If None, all columns will be returned. Defaults to None
+            count (Optional[int]): Number of log-entries to be returned.
+                If None, all entries will be returned. Defaults to None.
+            columns (Optional[int]): Columns to be returned, see columnheader_get.
+                If None, all columns will be returned. Defaults to None
         """
         if count is None:
-            count = len(self.pirozeda.ramlog)
+            count = len(cls.pirozeda.ramlog)
 
         retval = {
-                'columns' : ProzedaLogdata.get_column_header(columns, True),
-                'data' : [],
-            }
+            'columns' : ProzedaLogdata.get_column_header(columns, True),
+            'data' : [],
+        }
 
         # deque doesn't support slicing, so we need to do it manually
-        start = max(0, len(self.pirozeda.ramlog) - count)
-        for i in range(start, len(self.pirozeda.ramlog)):
-            item = self.pirozeda.ramlog[i]
+        start = max(0, len(cls.pirozeda.ramlog) - count)
+        for i in range(start, len(cls.pirozeda.ramlog)):
+            item = cls.pirozeda.ramlog[i]
             if item is not None:
                 item = item.get_columns(columns, True)
             retval['data'].append(item)
         return retval
 
-    @pyjsonrpc.rpcmethod
-    def fslog_flush(self):
+    @classmethod
+    def fslog_flush(cls):
         """Flushes the buffer of the filesystem log"""
-        return self.pirozeda.fslog.flush()
-    
-    @pyjsonrpc.rpcmethod
-    def fslog_read(self, starttime, endtime, selected_columns=None):
+        return cls.pirozeda.fslog.flush()
+
+    @classmethod
+    def fslog_read(cls, starttime, endtime, selected_columns=None):
         """Reads entries in the given time range from the file system logs.
 
         Args:
             startime (int): UTC timestamp from when the entries should be read.
             endtime (int): UTC timestamp until when the entries should be read.
-            selected_columns (Optional[list]): List of columns that should be returned. Defaults to None (all columns).
-        
+            selected_columns (Optional[list]): List of columns that should be returned.
+                Defaults to None (all columns).
+
         Returns:
             dict: List of found log entries.
         """
-        self.pirozeda.fslog.flush()
+        cls.pirozeda.fslog.flush()
         return ProzedaHistory.readlogsrange_as_list(starttime, endtime, selected_columns)
 
-    @pyjsonrpc.rpcmethod
-    def fslog_readcondensed(self, starttime, endtime, column_index):
+    @classmethod
+    def fslog_readcondensed(cls, starttime, endtime, column_index):
         """Reads one column in the given time range from the file system logs as "condensed" list
-            
+
         Args:
             startime (int): UTC timestamp from when the entries should be read.
             endtime (int): UTC timestamp until when the entries should be read.
             column_index (int): index of columns that should be returned.
 
         Returns:
-            dict: List of found log entries. Data is aligned (if possible) to the number of slots of measurements defined
-                by the interval of the fslog
+            dict: List of found log entries. Data is aligned (if possible) to the number of slots
+                of measurements defined by the interval of the fslog
         """
-        self.pirozeda.fslog.flush()
+        cls.pirozeda.fslog.flush()
         return ProzedaHistory.readlogsrange_condensed(starttime, endtime, column_index)
 
-    @pyjsonrpc.rpcmethod
-    def display_getcurrent(self, raw=False):
+    @classmethod
+    def display_getcurrent(cls, raw=False):
         """Returns the display content
 
         Args:
-            raw (Optional[bool]): If true, raw message will be returned as Hexstring. Defaults to False.
+            raw (Optional[bool]): If true, raw message will be returned as Hexstring. 
+                Defaults to False.
         """
-        if not self.pirozeda.prozeda.hist_dispdata:
+        if not cls.pirozeda.prozeda.hist_dispdata:
             return None
-        dispdata = self.pirozeda.prozeda.hist_dispdata[-1]
+        dispdata = cls.pirozeda.prozeda.hist_dispdata[-1]
         if not dispdata:
             return None
         dispdata.parse()
@@ -196,53 +222,45 @@ class JsonrpcRequestHandler(pyjsonrpc.HttpRequestHandler):
         if raw:
             result['raw'] = ''.join('{:02X}'.format(c) for c in dispdata.data)
         return result
-    
-    @pyjsonrpc.rpcmethod
-    def trace_start(self, duration):
+
+    @classmethod
+    def trace_start(cls, duration):
         """Starts the file trace or bumps the trace duration and returns the info of the trace
 
         Args:
             duration (int): time in seconds (from now) the trace should be recorded
-        
+
         Returns:
             dict: Statistics of the trace-system
         """
-        self.pirozeda.trace.start(duration)
-        return self.pirozeda.trace.stats()
+        cls.pirozeda.trace.start(duration)
+        return cls.pirozeda.trace.stats()
 
-    
-    @pyjsonrpc.rpcmethod
-    def trace_stop(self):
+
+    @classmethod
+    def trace_stop(cls):
         """Stops the file trace"""
-        self.pirozeda.trace.stop()
+        cls.pirozeda.trace.stop()
 
-    @pyjsonrpc.rpcmethod
-    def trace_live(self, last_timestamp=0):
+    @classmethod
+    def trace_live(cls, last_timestamp=0):
         """Get live messages from the UART
 
         Args:
-            last_timestamp (Optional[int]): last timestamp (UTC) from when the trace messages should be returned. Defaults to 0 (all messages).
+            last_timestamp (Optional[int]): last timestamp (UTC) from when the trace messages
+                should be returned. Defaults to 0 (all messages).
 
         Returns:
-            dict: current timestamp (for synchronisation)  List of trace messages including timestamp.
+            dict: current timestamp (for synchronisation) List of trace messages including timestamp
         """
         return {
-                'now' : time.time(),
-                'data' : self.pirozeda.trace.livetrace_get(last_timestamp)
-            }
+            'now' : time.time(),
+            'data' : cls.pirozeda.trace.livetrace_get(last_timestamp)
+        }
 
-    @staticmethod
-    def startserver():
-        http_server = pyjsonrpc.ThreadingHttpServer(
-            server_address=settings['server_address'],
-            RequestHandlerClass=JsonrpcRequestHandler
-        )
-
-
-
-        server_thread = threading.Thread(target=http_server.serve_forever)
-        server_thread.daemon = True
-        server_thread.start()
+    @classmethod
+    def hw_reset(cls):
+        cls.pirozeda.prozeda.cmd_reset()
 
 
 class ProzedaTrace(object):
@@ -253,20 +271,20 @@ class ProzedaTrace(object):
         self.starttime = None
         self.stoptime = None
         self.logger = None
-        
+
         self.livetrace = collections.deque(maxlen=100)
-    
+
     def start(self, duration, comment=None):
-        if self.starttime == None:
+        if self.starttime is None:
             self.starttime = time.time()
-        
+
         if duration is None:
             duration = 0
         self.stoptime = time.time() + int(duration)
 
         if self.logger is None:
             self.logger = DataLogger(self.fileprefix, self.filesuffix, '%Y-%m-%d_%H.%M.%S', True)
-        
+
         if comment is not None and self.logger is not None:
             self.logger.write(None, 'c', comment)
 
@@ -276,9 +294,15 @@ class ProzedaTrace(object):
         self.logger = None
         self.starttime = None
         self.stoptime = None
-    
+
     def stats(self):
-        result = {'file' : None, 'start' : self.starttime, 'stop' : self.stoptime, 'remaining' : None, 'size' : None }
+        result = {
+            'file' : None,
+            'start' : self.starttime,
+            'stop' : self.stoptime,
+            'remaining' : None,
+            'size' : None
+        }
         if self.stoptime is not None:
             result['remaining'] = self.stoptime - time.time()
         if self.logger is not None:
@@ -287,14 +311,14 @@ class ProzedaTrace(object):
         return result
 
     def data_received(self, prd, timestamp, line):
-        if time.time() >= self.stoptime:
+        if self.stoptime and time.time() >= self.stoptime:
             self.stop()
-        
+
         if self.logger is not None:
             self.logger.write(timestamp, 'd', line)
 
         self.livetrace.append([timestamp, line])
-    
+
     def livetrace_get(self, last_timestamp=0):
         result = []
         for item in self.livetrace:
@@ -329,8 +353,33 @@ class Pirozeda(object):
 
         JsonrpcRequestHandler.pirozeda = self
 
+        self.dispatcher = {}
+
+        for m in [
+                "info", "settings_get", "system_stats", "current_logentry", "columnheader_get",
+                "ramlog_getlast", "fslog_flush", "fslog_read", "fslog_readcondensed",
+                "display_getcurrent", "trace_start", "trace_stop", "trace_live", "hw_reset"
+        ]:
+            self.dispatcher[m] = getattr(JsonrpcRequestHandler, m)
+
+    @Request.application
+    def server_application(self, request):
+        #dispatcher["echo"] = lambda s: s
+        response = JSONRPCResponseManager.handle(request.data, self.dispatcher)
+        return Response(response.json, mimetype='application/json')
+
+    def server_start(self):
+        server_thread = threading.Thread(
+            target=run_simple,
+            args=(
+                settings['server_address'][0],
+                settings['server_address'][1],
+                self.server_application))
+        server_thread.daemon = True
+        server_thread.start()
+
     def run(self):
-        JsonrpcRequestHandler.startserver()
+        self.server_start()
 
         try:
             while True:
@@ -375,7 +424,7 @@ def main():
     while datetime.now().year < 2000:
         print("system time invalid, waiting for NTP update...")
         time.sleep(10)
-    
+
     print("ready.")
 
     meh = Pirozeda()

@@ -2,10 +2,10 @@
 from __future__ import print_function
 
 from datetime import datetime, timedelta
-from prozeda import ProzedaReader, ProzedaLogdata
 import base64
 import os
 import time
+from prozeda import ProzedaReader, ProzedaLogdata
 
 class ProzedaHistory(object):
 

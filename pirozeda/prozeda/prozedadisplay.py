@@ -118,4 +118,4 @@ class ProzedaDisplaydata(object):
         }
 
 if __name__ == '__main__':
-    print 'you\'re not supposed to run this file'
+    print('you\'re not supposed to run this file')

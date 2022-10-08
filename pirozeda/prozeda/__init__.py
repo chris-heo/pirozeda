@@ -1,18 +1,18 @@
 #import prozeda.prozedalogcolumn
-from prozedalog import (
+from .prozedalog import (
     ProzedaLogdata,
     ProzedaLogColumn,
 )
 
-from prozedadisplay import (
+from .prozedadisplay import (
     ProzedaDisplaydata
 )
 
-from prozeda.prozedareader import (
+from .prozedareader import (
     ProzedaCommError,
     ProzedaReader
 )
 
-from prozedahistory import (
+from .prozedahistory import (
     ProzedaHistory
 )
