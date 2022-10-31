@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import platform
+import logging
 from prozeda_systems import prozeda_systems
 
 settings = {
@@ -31,12 +32,37 @@ settings = {
     'location' : {
         'lon' : 48.3, # North
         'lat' : 10.1, # East
+    },
+    'logging' : {
+        'loggers': {
+            'prozeda.prozedareader' : {
+                'level' : logging.WARNING,
+                'stdout' : True,
+                'file' : True,
+            },
+            'prozeda.prozedahistory' : {
+                'level' : logging.WARNING,
+                'stdout' : True,
+                'file' : False,
+            },
+            '__main__' : {
+                'level' : logging.INFO,
+                'stdout' : True,
+                'file' : True,
+            },
+            'werkzeug' : {
+                'level' : logging.ERROR,
+                'stdout' : True,
+                'file' : False,
+            },
+        }
+        
     }
 }
 
 # overrides for test environment
 if platform.system() == 'Windows':
-    settings['serialport']['port'] = 'COM8'
+    settings['serialport']['port'] = 'COM100'
     settings['fslog']['dir'] = 'logs/'
     settings['trace']['dir'] = 'trace/'
     settings['ramlog']['interval'] = 10

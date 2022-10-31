@@ -8,6 +8,9 @@ import collections
 import re
 from .prozedalog import ProzedaLogdata
 from .prozedadisplay import ProzedaDisplaydata
+import logging
+
+logger = logging.getLogger(__name__)
 
 class ProzedaCommError():
     """Communication errors detected either by the microcontroller or ProzedaReader"""
@@ -29,14 +32,17 @@ class ProzedaReaderInfo():
 
     def parse(self, txt, timestamp):
         if txt.startswith("Built on:"):
+            logger.debug("MCU %s" % (txt))
             self.reset_last = timestamp
             res = re.findall(r"Built on: ([ADFJMNOS][abceglnoprtuvy]{2} +\d+ \d+ \d+:\d+:\d+)", txt)
             if res:
                 dt = datetime.strptime(res[0], "%b %d %Y %H:%M:%S")
                 self.build_date = time.mktime(dt.timetuple())
         elif txt.startswith("Version:"):
+            logger.debug("MCU %s" % (txt))
             self.version = txt[9:]
         elif txt.startswith("Info:"):
+            logger.debug("MCU %s" % (txt))
             regex = re.compile("Info: Last reset due to ([A-Z ]+)"
                                ", (?:no previous reboot|reboot #(\\d+))"
                                "(?:, uptime was (\\d+))?")
@@ -94,6 +100,7 @@ class ProzedaReader():
 
     def stop(self):
         """stops the reader"""
+        logger.debug("Reader stop requested")
         self.readerrunning = False
         self.ser.close()
 
@@ -128,8 +135,10 @@ class ProzedaReader():
 
     def rx_error(self, data, timestamp):
         """called when a error was detected by the microcontroller"""
+        logger.error("MCU %s" % data)
         self.stat_rxerror_cnt += 1
         self.last_error = timestamp
+        
         #res = re.findall(r"rxErr:(Len|CRC) e:([0-9A-F]+), a:([0-9A-F]+)", data, re.IGNORECASE)
         #if res:
         #    res[0][0]: Len|CRC
@@ -141,6 +150,7 @@ class ProzedaReader():
 
     def rx_hw_reset(self, timestamp):
         """called when a hardware reset was detected"""
+        logger.warning("MCU reset detected")
         self.stat_reset_cnt += 1
         self.last_error = timestamp
         if callable(self.evt_error_received):
@@ -148,6 +158,7 @@ class ProzedaReader():
 
     def rx_data_missing(self, timestamp):
         """called when no data is received"""
+        logger.warning("MCU data error detected")
         self.stat_reset_cnt += 1
         self.last_error = timestamp
         if callable(self.evt_error_received):
@@ -157,8 +168,11 @@ class ProzedaReader():
         """
             receiver thread
         """
+        logger.debug("Reader started")
+
         while True:
             if not self.readerrunning:
+                logger.debug("Reader stopped")
                 return
 
             try:

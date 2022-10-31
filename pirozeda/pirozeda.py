@@ -12,7 +12,7 @@ from datetime import datetime
 import collections
 import base64
 import threading
-import logging
+import logging, logging.handlers
 import serial
 from werkzeug.wrappers import Request, Response
 from werkzeug.serving import run_simple
@@ -21,8 +21,30 @@ from prozeda import ProzedaReader, ProzedaLogdata, ProzedaHistory
 from datalogger import DataLogger
 from pirozeda_settings import settings
 
-log = logging.getLogger('werkzeug')
-log.setLevel(logging.ERROR)
+logger = logging.getLogger(__name__)
+
+formatter = logging.Formatter(
+    '%(asctime)s\t%(levelname)s\t%(name)s\t%(filename)s:%(funcName)s:%(lineno)s\t%(message)s',
+)
+
+handler_stdout = logging.StreamHandler()
+handler_stdout.setFormatter(formatter)
+handler_file = None
+
+for logger_name in settings['logging']['loggers']:
+    cfg = settings['logging']['loggers'][logger_name]
+    l = logging.getLogger(logger_name)
+    l.handlers.clear()
+    l.setLevel(cfg["level"])
+    if cfg["stdout"] is True:
+        l.addHandler(handler_stdout)
+    if cfg["file"] is True:
+        if handler_file is None:
+            handler_file = logging.handlers.RotatingFileHandler(
+                "syslogs/py_backend.log", maxBytes=(1048576*5), backupCount=7
+            )
+            handler_file.setFormatter(formatter)
+        l.addHandler(handler_file)
 
 def dir_getsize(start_path):
     total_size = 0
@@ -326,8 +348,6 @@ class ProzedaTrace(object):
                 result.append(item)
         return result
 
-
-
 class Pirozeda(object):
     def __init__(self):
         self.ramlog = collections.deque(maxlen=settings['ramlog']['length'])
@@ -335,6 +355,7 @@ class Pirozeda(object):
         self.ramlog_last = 0
         # avoid no data received error right at the beginning
         self.commdead_last = time.time()
+        self.comm_last = 0
 
         strace = settings['trace']
         self.trace = ProzedaTrace(strace['dir'] + strace['prefix'], strace['suffix'])
@@ -386,11 +407,16 @@ class Pirozeda(object):
 
                 time.sleep(0.1)
                 ts = time.time()
-                if not self.prozeda.communication_alive():
+                if self.prozeda.communication_alive():
+                    self.comm_last = time.time()
+                else:
                     # nag only every 10 seconds
                     if ts >= (self.commdead_last + 10):
                         self.commdead_last = ts
-                        print(str(datetime.now()) + ": no data received")
+                        dur = "since startup"
+                        if self.comm_last > 0:
+                            dur = "for %u seconds" % (time.time() - self.comm_last)
+                        logger.warning("No data received %s" % (dur))
 
                 if ts >= (self.fslog_last + settings['fslog']['interval']):
                     self.fslog_last = ts
@@ -411,7 +437,7 @@ class Pirozeda(object):
                         self.ramlog.append(logentry)
 
         except KeyboardInterrupt:
-            print("quitting...")
+            logger.info("Quitting... (Keyboard interrupt)")
             self.prozeda.stop()
             exit()
 
@@ -422,10 +448,10 @@ def main():
     # when the system starts, it lives in 1970, this is not quite useful when writing
     # logs. Therefore, it's better to wait until the system got a proper time
     while datetime.now().year < 2000:
-        print("system time invalid, waiting for NTP update...")
+        logger.warning("System time invalid, waiting for update...")
         time.sleep(10)
 
-    print("ready.")
+    logger.info("Ready")
 
     meh = Pirozeda()
     meh.run()

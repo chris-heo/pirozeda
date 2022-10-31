@@ -5,7 +5,10 @@ from datetime import datetime, timedelta
 import base64
 import os
 import time
+import logging
 from prozeda import ProzedaReader, ProzedaLogdata
+
+logger = logging.getLogger(__name__)
 
 class ProzedaHistory(object):
 
@@ -27,7 +30,9 @@ class ProzedaHistory(object):
         currentday = currentday.replace(hour=0, minute=0, second=0, microsecond=0)
 
         lastday = datetime.fromtimestamp(endtime)
-        lastday = lastday.replace(hour=23, minute=59, second=59, microsecond=999999) 
+        lastday = lastday.replace(hour=23, minute=59, second=59, microsecond=999999)
+
+        logger.debug("Retrieving logs between %s and %s" % (currentday.strftime('%Y-%m-%d'), lastday.strftime('%Y-%m-%d')))
 
         while True:
             dtstr = currentday.strftime('%Y-%m-%d')
@@ -38,6 +43,7 @@ class ProzedaHistory(object):
                 #print('{} has {} entries'.format(fname, len(daydata)))
                 result.extend(daydata)
             else:
+                logger.debug("File '%s' does not exist" % (fname))
                 #print('{} does not exist'.format(fname))
                 pass
 
@@ -51,8 +57,11 @@ class ProzedaHistory(object):
         if ProzedaHistory.config is None:
             raise Exception("config not set, use static method set_config before usage")
         result = []
+        logger.debug("Reading file '%s'" % (filename))
         with open(filename) as f:
+            lineno = 0
             for line in f:
+                lineno += 1
                 parts = line.split('\t')
 
                 if len(parts) != 3 or parts[1] != 'd':
@@ -69,9 +78,12 @@ class ProzedaHistory(object):
                         data = [ord(x) for x in data]
                         result.append(ProzedaLogdata(data, timestamp))
                     except:
+                        logger.error("Data in line %u could not be decoded" % (lineno))
                         pass
                 else:
                     result.append([timestamp, parts[2]])
+
+        logger.debug("Found %u entries" % (len(result)))
         return result
 
     @staticmethod 
