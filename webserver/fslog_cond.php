@@ -1,4 +1,5 @@
 <?php
+include("config.php");
 include("vendor/autoload.php");
 use JsonRPC\Client;
 header("Content-Type: application/json");
@@ -8,20 +9,28 @@ header("Content-Type: application/json");
 
 /*$df = 1525125600;
 $dt = 1530395976;
-$client = new Client('http://127.0.0.1:19000');
+$client = new Client($pirozeda_host);
 $result = $client->fslog_readcondensed($df, $dt, 2);
 echo json_encode($result);
 exit();*/
 
+$log->debug("fslog_cond requested");
+
 if(!isset($_GET["action"]) || !isset($_GET["datefrom"]) || !isset($_GET["dateto"]) || !isset($_GET["col"]))
 {
-	exit();
+    $log->warning("required parameter not set");
+    exit();
 }
 
-$client = new Client('http://127.0.0.1:19000');
+$client = new Client($pirozeda_host);
 
 if($_GET["action"] == "chart")
 {
-	$result = $client->fslog_readcondensed(intval($_GET["datefrom"]), intval($_GET["dateto"]), intval($_GET["col"]));
-	echo json_encode($result);
+    $result = $client->fslog_readcondensed(intval($_GET["datefrom"]), intval($_GET["dateto"]), intval($_GET["col"]));
+    echo json_encode($result);
+    $log->debug("fslog_cond chart returned");
+}
+else
+{
+    $log->warning("unknown action: " . $_GET["action"]);
 }
