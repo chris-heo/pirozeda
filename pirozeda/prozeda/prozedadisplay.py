@@ -35,7 +35,7 @@ class ProzedaDisplaydata(object):
         # 0xF5: ▼ - filled down-pointing triangle (not sure!)
         # 0xFA: [ - left bracket
         # 0xFC: ] - right bracket
-        # 0x??: ä - german umlaut for small 'ä'
+        # 0x??: ä - german umlaut for small 'a'
         mapping = [
             ('\x01', '°'), ('\x05', '↙'), ('\x06', '↗'),
             ('\x07', '▲'), ('\x81', 'ü'), ('\x94', 'ö'),
@@ -57,9 +57,9 @@ class ProzedaDisplaydata(object):
             return False
 
         self.text = [
-            self.convert_displaytext(self.data[0:14]),
-            self.convert_displaytext(self.data[14:24]),
-            self.convert_displaytext(self.data[24:38]),
+            self.convert_displaytext(self.data[0:14]),  # 0x00 .. 0x0E
+            self.convert_displaytext(self.data[14:24]), # 0x0E .. 0x17
+            self.convert_displaytext(self.data[24:38]), # 0x18 .. 0x25
         ]
         self.menu_info = (self.data[0x26] & 0x01) != 0
         self.menu_settings = (self.data[0x2A] & 0x01) != 0

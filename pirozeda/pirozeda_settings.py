@@ -55,8 +55,12 @@ settings = {
                 'stdout' : True,
                 'file' : False,
             },
-        }
-        
+        },
+        'logfile' : '/home/pi/pirozeda/syslogs/py_backend.log',
+        # interval in seconds to log ram usage as info (or None to disable)
+        'log_ramusage_interval' : None,
+        # log all exceptions
+        'exception_hook' : True,
     }
 }
 
@@ -65,6 +69,7 @@ if platform.system() == 'Windows':
     settings['serialport']['port'] = 'COM100'
     settings['fslog']['dir'] = 'logs/'
     settings['trace']['dir'] = 'trace/'
+    settings['logging']['logfile'] = 'syslogs/py_backend.log'
     settings['ramlog']['interval'] = 10
 
 # do some final calculations

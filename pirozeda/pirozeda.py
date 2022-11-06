@@ -31,6 +31,7 @@ handler_stdout = logging.StreamHandler()
 handler_stdout.setFormatter(formatter)
 handler_file = None
 
+# set up loggers
 for logger_name in settings['logging']['loggers']:
     cfg = settings['logging']['loggers'][logger_name]
     l = logging.getLogger(logger_name)
@@ -41,10 +42,18 @@ for logger_name in settings['logging']['loggers']:
     if cfg["file"] is True:
         if handler_file is None:
             handler_file = logging.handlers.RotatingFileHandler(
-                "syslogs/py_backend.log", maxBytes=(1048576*5), backupCount=7
+                settings['logging']['logfile'], maxBytes=(1048576*5), backupCount=7
             )
             handler_file.setFormatter(formatter)
         l.addHandler(handler_file)
+
+# exception hook for logging
+def _exception_hook(exctype, value, traceback):
+    logger.critical("Exception: %s - %s" % (exctype, value))
+    sys.__excepthook__(exctype, value, traceback)
+
+if settings['logging']['exception_hook'] is True:
+    sys.excepthook = _exception_hook
 
 def dir_getsize(start_path):
     total_size = 0
@@ -356,12 +365,15 @@ class Pirozeda(object):
         # avoid no data received error right at the beginning
         self.commdead_last = time.time()
         self.comm_last = 0
+        self.meminfo_last = 0
 
         strace = settings['trace']
         self.trace = ProzedaTrace(strace['dir'] + strace['prefix'], strace['suffix'])
 
         ProzedaLogdata.set_config(settings['system'])
         ProzedaHistory.set_config(settings)
+
+        logger.info("Settings: %s" % (str(settings)))
 
         sserial = settings['serialport']
         serialport = serial.Serial(sserial['port'], sserial['baudrate'])
@@ -435,6 +447,12 @@ class Pirozeda(object):
                     # TODO: check if logentry is old
                     if logentry is not None:
                         self.ramlog.append(logentry)
+
+                if (settings['logging']['log_ramusage_interval'] is not None and
+                    ts >= (self.meminfo_last + settings['logging']['log_ramusage_interval'])):
+                    self.meminfo_last = ts
+                    logger.info("Memory usage: %u" % (app_ramusage()))
+
 
         except KeyboardInterrupt:
             logger.info("Quitting... (Keyboard interrupt)")
