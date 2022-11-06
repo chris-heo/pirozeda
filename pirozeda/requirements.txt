@@ -1,5 +1,5 @@
 #https://github.com/pavlov99/json-rpc
 json_rpc==1.13.0
-jsonrpc==3.0.1
+#jsonrpc==3.0.1
 pyserial==3.5
 Werkzeug==2.2.2
