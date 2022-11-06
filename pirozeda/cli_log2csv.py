@@ -17,10 +17,12 @@ def convert(filename, log):
             if parts[1] == 'd':
                 try:
                     hexdata = base64.b64decode(parts[2])
-                    data = [ord(x) for x in hexdata]
-                    ld = ProzedaLogdata(data, timestamp)
+                    #data = [ord(x) for x in hexdata]
+                    #FIXME: is the following necessary?
+                    #data = list(hexdata)
+                    ld = ProzedaLogdata(hexdata, timestamp)
                     cols = ld.get_columns(None, True)
-                    cols.append(''.join('{:02X}'.format(c) for c in data))
+                    cols.append(''.join('{:02X}'.format(c) for c in hexdata))
                     log.write(separator.join(str(x) for x in cols).replace('.', ',') + '\n')
                 except:
                     log.write(separator.join(str(x) for x in [timestamp, 'data could not be converted']) + '\n')

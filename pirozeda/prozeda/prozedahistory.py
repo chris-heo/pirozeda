@@ -75,10 +75,12 @@ class ProzedaHistory(object):
                 if loadobject:
                     try:
                         data = base64.b64decode(parts[2])
-                        data = [ord(x) for x in data]
+                        #data = [ord(x) for x in data]
+                        #FIXME: is the following necessary?
+                        #data = list(data)
                         result.append(ProzedaLogdata(data, timestamp))
-                    except:
-                        logger.error("Data in line %u could not be decoded" % (lineno))
+                    except BaseException as e:
+                        logger.error("Data in line %u could not be decoded: %s" % (lineno, str(e)))
                         pass
                 else:
                     result.append([timestamp, parts[2]])
