@@ -45,8 +45,11 @@ class Logger
 
     private function openlog()
     {
-        if($this->filehandle != null || $this->filename == null || $this->filename == "")
+        if($this->filename == null || $this->filename == "")
             return false;
+
+        if($this->filehandle != null)
+            return true;
         
         $this->filehandle = fopen($this->filename, $this->filemode);
         return true;
